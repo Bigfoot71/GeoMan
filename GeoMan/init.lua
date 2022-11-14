@@ -723,14 +723,24 @@ local function isPolysIntersect(v1, v2)
 end
 
 
-local function isPolyInPoly(v1, v2) -- TODO: can be optimized but good example
+local function isPolyInPoly(v1, v2, entirely) -- TODO: can be optimized but good example
 
-    if not isPolysIntersect(v1, v2) then
+    local intersect = isPolysIntersect(v1, v2)
+
+    if not entirely and intersect then
+        return true
+    else
 
         for i = 1, #v1-1, 2 do
-            if isPointInPoly(v1[i], v1[i+1], v2) then
+
+            local inside = isPointInPoly(v1[i], v1[i+1], v2)
+
+            if (not intersect and inside)
+            or (not entirely and inside)
+            then
                 return true
             end
+
         end
 
     end
