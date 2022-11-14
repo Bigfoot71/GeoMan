@@ -13,6 +13,8 @@ Here is the list of changes I made: https://pastebin.com/mjb0FsE9
 
 I also included the library [polypartition](https://github.com/ivanfratric/polypartition) originally written by [ivanfratric](https://github.com/ivanfratric) then rewritten by [apicici](https://github.com/apicici) in MoonScript for his program [pathfun-editor](https://github.com/apicici/pathfun-editor).
 
+There is also a Lua rewrite of the [simplify-js](https://github.com/mourner/simplify-js) module to simplify polygons.
+
 # List of functions
 
     ellipse                 (x,y,rx,ry,segments)
