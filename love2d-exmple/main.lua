@@ -31,6 +31,7 @@ local polys_intersectAABB
 local polys_intersect
 local center_in_poly
 local poly_in_poly
+local poly_allIn_poly
 
 function love.update()
 
@@ -39,9 +40,13 @@ function love.update()
     gm.setPosition(mx,my, rpoly)
 
     polys_intersectAABB = gm.isPolysIntersect_AABB(hex.verts, rpoly)
+
     polys_intersect = gm.isPolysIntersect(hex.verts, rpoly)
+
     center_in_poly = gm.isPointInPoly(mx,my,hex.verts)
+
     poly_in_poly = gm.isPolyInPoly(rpoly, hex.verts)
+    poly_allIn_poly = gm.isPolyInPoly(rpoly, hex.verts, true)
 
 end
 
@@ -105,7 +110,8 @@ function love.draw()
     lg.print("AABB intersction: "..tostring(polys_intersectAABB), 0,0)
     lg.print("Polygons intersection: "..tostring(polys_intersect), 0,16)
     lg.print("Center inside poly: "..tostring(center_in_poly), 0,32)
-    lg.print("Poly all in poly: "..tostring(poly_in_poly), 0,48)
+    lg.print("Poly in poly: "..tostring(poly_in_poly), 0,48)
+    lg.print("Poly entirely in poly: "..tostring(poly_allIn_poly), 0,64)
 
     local str = "Vertices number: "..tostring(#hex.verts/2)
     local w = font:getWidth(str); lg.print(str, win_w-w, 0)
