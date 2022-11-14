@@ -7,7 +7,7 @@ GeoMan is a geometry library written in Lua that allows you to generate shapes, 
 
 I started this project from that of [AlexarJING](https://github.com/AlexarJING/polygon/) and I gradually added features until giving this library.
 
-Here is the list of changes I made: https://pastebin.com/mjb0FsE9
+Here is the list of changes I made: https://pastebin.com/6fbAYe7F
 
 # Other mentions
 
