@@ -2,6 +2,7 @@ local gm = require("GeoMan")
 local lg = love.graphics
 
 local win_w, win_h = lg.getDimensions()
+local font = lg.getFont()
 
 
 -- Gen hexagon --
@@ -44,6 +45,14 @@ function love.update()
 
 end
 
+function love.keyreleased(key)
+    if key == "space" then
+        hex.verts = gm.simplifyPoly(hex.verts)
+        hex.triangles = love.math.triangulate(hex.verts)
+        hex.w, hex.h, hex.x, hex.y = gm.getPolyDimensions(hex.verts)
+    end
+end
+
 function love.mousereleased(x,y,btn)
 
     if btn == 1 and polys_intersect then
@@ -56,6 +65,12 @@ function love.mousereleased(x,y,btn)
     elseif btn == 2 then
 
         hex.verts = gm.convexHull(hex.verts)
+        hex.triangles = love.math.triangulate(hex.verts)
+        hex.w, hex.h, hex.x, hex.y = gm.getPolyDimensions(hex.verts)
+
+    elseif btn == 3 then
+
+        hex.verts = gm.keepMidVerts(hex.verts)
         hex.triangles = love.math.triangulate(hex.verts)
         hex.w, hex.h, hex.x, hex.y = gm.getPolyDimensions(hex.verts)
 
@@ -83,7 +98,7 @@ function love.draw()
     local w,h,x,y = gm.getPolyDimensions(rpoly)
     lg.rectangle("line", x, y, w, h)
 
-    -- Print collision infos --
+    -- Print infos --
 
     lg.setColor(1,1,1)
 
@@ -92,7 +107,14 @@ function love.draw()
     lg.print("Center inside poly: "..tostring(center_in_poly), 0,32)
     lg.print("Poly all in poly: "..tostring(poly_in_poly), 0,48)
 
-    lg.print("Left click to unite polygons.", 0, win_h-32)
+    local str = "Vertices number: "..tostring(#hex.verts/2)
+    local w = font:getWidth(str); lg.print(str, win_w-w, 0)
+
+    lg.print("Left click to unite polygons.", 0, win_h-48)
+    lg.print("Middle click to keep middle of edges.", 0, win_h-32)
     lg.print("Right click to apply convex hull.", 0, win_h-16)
+
+    local str = "Press SPACE for simplify polygon."
+    local w = font:getWidth(str); lg.print(str, win_w-w, win_h-16)
 
 end
