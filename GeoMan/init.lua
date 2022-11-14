@@ -7,19 +7,6 @@ local convexpart = require(path.."/convexpart")
 local lineCross  = require(path.."/lineCross")
 
 
-local getDist = function(x1,y1,x2,y2)
-    return math.sqrt((x1-x2)^2+(y1-y2)^2)
-end
-
-local getRot = function (x1,y1,x2,y2,toggle)
-    if x1==x2 and y1==y2 then return 0 end
-    local angle=math.atan((x1-x2)/(y1-y2))
-    if y1-y2<0 then angle=angle-math.pi end
-    if toggle==true then angle=angle+math.pi end
-    if angle>0 then angle=angle-2*math.pi end
-    if angle==0 then return 0 end
-    return -angle
-end
 
 local axisRot = function(x,y,rot)
     return math.cos(rot)*x-math.sin(rot)*y,math.cos(rot)*y+math.sin(rot)*x
@@ -87,6 +74,151 @@ local function newLozenge(x,y,w,h)
 end
 
 
+local function keepMidVerts(verts, keepOlds)
+
+    local v = {}
+
+    for i = 1, #verts-1, 2 do
+
+        local j = i+2 < #verts and i+2 or 1
+
+        local x = (verts[i] + verts[j]) / 2
+        local y = (verts[i+1] + verts[j+1]) / 2
+
+        if keepOlds then
+            v[#v+1], v[#v+2] = verts[i], verts[i+1]
+        end
+
+        v[#v+1], v[#v+2] = x, y
+
+    end
+
+    return v
+
+end
+
+
+local function getSegDist(x,y, x1,y1, x2,y2)
+
+    local dx = x2 - x1
+    local dy = y2 - y1
+
+    if dx ~= 0 or dy ~= 0 then
+
+        t = ((x - x1) * dx + (y - y1) * dy) / (dx^2 + dy^2)
+
+        if t > 1 then
+            x1, y1 = x2, y2
+        elseif t > 0 then
+            x1 = x1 + dx * t
+            y1 = y1 + dy * t
+        end
+
+    end
+
+    dx = x - x1
+    dy = y - y1
+
+    return dx^2 + dy^2
+
+end
+
+
+local simplifyRadialDistance = function(verts, tolerance)
+
+    local prev_x, x = verts[1]
+    local prev_y, y = verts[2]
+
+    local new_verts = {prev_x, prev_y}
+
+    for i = 1, #verts-1, 2 do
+
+        x, y = verts[i], verts[i+1]
+
+        if getDist(x,y, prev_x,prev_y) > tolerance then
+            new_verts[#new_verts+1] = x
+            new_verts[#new_verts+1] = y
+            prev_x, prev_y = x, y
+        end
+
+    end
+
+    if prev_x ~= x and prev_y ~= y then
+        new_verts[#new_verts+1] = x
+        new_verts[#new_verts+1] = y
+    end
+
+    return new_verts
+
+end
+
+local simplifyDPStep
+simplifyDPStep = function(verts, first, last, tolerance, simplified)
+
+    local maxDist, index = tolerance
+
+    for i = first+2, last, 2 do
+
+        local dist = getSegDist(
+            verts[i], verts[i+1],
+            verts[first], verts[first+1],
+            verts[last], verts[last+1]
+        )
+
+        if (dist > maxDist) then
+            index, maxDist = i, dist
+        end
+
+    end
+
+    if maxDist > tolerance then
+
+        if index - first > 1 then
+            simplifyDPStep(verts, first, index, tolerance, simplified)
+            simplified[#simplified+1] = verts[index]
+            simplified[#simplified+1] = verts[index+1]
+        end
+
+        if last - index > 1 then
+            simplifyDPStep(verts, index, last, tolerance, simplified)
+        end
+
+    end
+
+end
+
+local simplifyDouglasPeucker = function(verts, tolerance)
+
+    local last = #verts-1
+    local simplified = {verts[1], verts[2]}
+
+    simplifyDPStep(verts, 1, last, tolerance, simplified)
+
+    simplified[#simplified+1] = verts[last]
+    simplified[#simplified+1] = verts[last+1]
+
+    return simplified;
+
+end
+
+local function simplifyPoly(verts, tolerance, highestQuality)
+
+    tolerance = tolerance or .1
+    highestQuality = highestQuality or true
+
+    sqtolerance = tolerance ^ 2
+
+    if not highestQuality then
+        verts = simplifyRadialDistance(verts, sqtolerance)
+    end
+
+    verts = simplifyDouglasPeucker(verts, sqtolerance)
+
+    return verts
+
+end
+
+
 local function newPolygonTrans(x,y,rot,size,v)
 
     rot, size = rot or 0, size or 1
@@ -113,6 +245,22 @@ local function polygonTrans(x,y,rot,size,v)
         v[2*i] = v[2*i]*size+y
     end
 
+end
+
+
+local function getDist(x1,y1,x2,y2)
+    return math.sqrt((x1-x2)^2+(y1-y2)^2)
+end
+
+
+local function getRot(x1,y1,x2,y2,toggle)
+    if x1==x2 and y1==y2 then return 0 end
+    local angle=math.atan((x1-x2)/(y1-y2))
+    if y1-y2<0 then angle=angle-math.pi end
+    if toggle==true then angle=angle+math.pi end
+    if angle>0 then angle=angle-2*math.pi end
+    if angle==0 then return 0 end
+    return -angle
 end
 
 
@@ -210,6 +358,64 @@ local function isCircleOutPoly(x,y,r,poly,aseg) -- TODO: must be optimized
             end
         end
 
+    end
+
+    return false
+
+end
+
+
+local function isCircleInCircle(x1,y1,r1, x2,y2,r2, repos)
+
+    if repos then
+
+        local dx = x1 - x2
+        local dy = y1 - y2
+        local rr = r1 + r2
+
+        local dist = math.sqrt(dx^2+dy^2)
+
+        local overlap = (dist - rr)
+
+        local x = x1 - (dx / dist) * overlap
+        local y = y1 - (dy / dist) * overlap
+
+        if dist <= rr then
+            return true, x, y
+        end
+
+    elseif getDist(x1,y1, x2,y2) <= r1+r2 then
+        return true
+    end
+
+    return false
+
+end
+
+
+local function isCircleOutCircle(x1,y1,r1, x2,y2,r2, repos)
+
+    if r1 < r2 then  r1, r2 = r2, r1 end
+
+    if repos then
+
+        local dx = x1 - x2
+        local dy = y1 - y2
+        local rr = r1 - r2
+
+        local dist = math.sqrt(dx^2+dy^2)
+
+        local overlap = (dist - rr)
+
+        local x = x1 - (dx / dist) * overlap
+        local y = y1 - (dy / dist) * overlap
+
+        if dist >= rr then
+            return true, x, y
+        end
+
+    elseif getDist(x1,y1, x2,y2) >= r1-r2 then
+        return true
     end
 
     return false
@@ -326,9 +532,9 @@ local function linesIntersect(x1,y1, x2,y2, x3,y3, x4,y4, asSegment)
 
     if asSegment then
 
-        local uc = ((y4 - y3) * (x2 - x1) - (x4 - x3) * (y2 - y1));
-        local ua = (((x4 - x3) * (y1 - y3)) - (y4 - y3) * (x1 - x3)) / uc;
-        local ub = (((x2 - x1) * (y1 - y3)) - ((y2 - y1) * (x1 - x3))) / uc;
+        local uc = ((y4 - y3) * (x2 - x1) - (x4 - x3) * (y2 - y1))
+        local ua = (((x4 - x3) * (y1 - y3)) - (y4 - y3) * (x1 - x3)) / uc
+        local ub = (((x2 - x1) * (y1 - y3)) - ((y2 - y1) * (x1 - x3))) / uc
 
         if ua >= 0 and ua <= 1 and ub >= 0 and ub <= 1 then
             return px, py
@@ -652,6 +858,9 @@ return {
     hexagon                 = newHexagon, 		        -- x,y,r
     lozenge                 = newLozenge,               -- x,y,w,h
     random                  = randomPolygon, 	        -- count,size
+    keepMidVerts            = keepMidVerts,             -- verts
+    getSegDist              = getSegDist,               -- x,y,x1,y1,x2,y2
+    simplifyPoly            = simplifyPoly,             -- verts, tolerance, highQuality
     getArea                 = getArea, 			        -- verts
     getPolyDimensions       = getPolyDimensions,        -- verts
     getTriArea              = getTriArea,               -- verts
@@ -659,6 +868,8 @@ return {
     concaveHull             = concaveHull, 		        -- verts
     translate               = polygonTrans, 	        -- x,y,rot,size,verts
     newTranslated           = newPolygonTrans,          -- x,y,rot,size,verts
+    getDist                 = getDist,                  -- x1,y1,x2,y2
+    getAngle                = getRot,                   -- x1,y1,x2,y2,toggle
     setPosition             = setPolygonPosition,       -- x,y,verts
     isPolysIntersect_AABB   = isPolysIntersect_AABB,    -- verts1, verts2
     isPolysIntersect        = isPolysIntersect,         -- verts1, verts2
@@ -666,6 +877,8 @@ return {
     isPointInPoly           = isPointInPoly,	        -- x,y,verts
     isCircleInPoly          = isCircleInPoly,           -- x,y,r,verts,isOut
     isCircleOutPoly         = isCircleOutPoly,          -- x,y,r,verts
+    isCircleInCircle        = isCircleInCircle,         -- x1,y1,r1,x2,y2,r2,repos
+    isCircleOutCircle       = isCircleOutCircle,        -- x1,y1,r1,x2,y2,r2,repos
     isPointInTri            = isPointInTri,             -- x,y,verts
     getTriCenter            = getTriCenter,             -- verts
     getAdjacentTris         = getAdjacentTris,          -- index, triangles
