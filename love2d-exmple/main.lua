@@ -4,6 +4,13 @@ local lg = love.graphics
 local win_w, win_h = lg.getDimensions()
 local font = lg.getFont()
 
+local str_test = "HERE IS DISPLAYED THE TIME OF EXECUTION OF OPERATIONS"
+
+local test = function(str, f, ...)
+    local t1, r, t2 = os.clock(), f(...), os.clock()
+    str = str..string.format(" took %0.6f seconds to run", t2 - t1)
+    return str, r
+end
 
 -- Gen hexagon --
 
@@ -37,7 +44,7 @@ function love.update()
 
     local mx, my = love.mouse.getPosition()
 
-    gm.setPosition(mx,my, rpoly)
+    gm.setPolyPosition(rpoly,mx,my,true)
 
     polys_intersectAABB = gm.isPolysIntersect_AABB(hex.verts, rpoly)
 
@@ -51,31 +58,43 @@ function love.update()
 end
 
 function love.keyreleased(key)
+
     if key == "space" then
-        hex.verts = gm.simplifyPoly(hex.verts)
+
+        str_test = "Simplify Poly"
+        str_test, hex.verts = test(str_test, gm.simplifyPoly, hex.verts)
+
         hex.triangles = love.math.triangulate(hex.verts)
         hex.w, hex.h, hex.x, hex.y = gm.getPolyDimensions(hex.verts)
+
     end
+
 end
 
 function love.mousereleased(x,y,btn)
 
     if btn == 1 and polys_intersect then
 
-        hex.verts = gm.polybool(hex.verts, rpoly, "or")
+        str_test = "Boolean operation 'OR'"
+        str_test, hex.verts = test(str_test, gm.polybool, hex.verts, rpoly, "or", true)
+
         hex.triangles = love.math.triangulate(hex.verts)
         hex.w, hex.h, hex.x, hex.y = gm.getPolyDimensions(hex.verts)
         rpoly = gm.random(0,0,4,1)
 
     elseif btn == 2 then
 
-        hex.verts = gm.convexHull(hex.verts)
+        str_test = "Convex Hull"
+        str_test, hex.verts = test(str_test, gm.convexHull, hex.verts)
+
         hex.triangles = love.math.triangulate(hex.verts)
         hex.w, hex.h, hex.x, hex.y = gm.getPolyDimensions(hex.verts)
 
     elseif btn == 3 then
 
-        hex.verts = gm.keepMidVerts(hex.verts)
+        str_test = "Keep Mid Points"
+        str_test, hex.verts = test(str_test, gm.keepMidPoints, hex.verts)
+
         hex.triangles = love.math.triangulate(hex.verts)
         hex.w, hex.h, hex.x, hex.y = gm.getPolyDimensions(hex.verts)
 
@@ -121,6 +140,8 @@ function love.draw()
     lg.print("Right click to apply convex hull.", 0, win_h-16)
 
     local str = "Press SPACE for simplify polygon."
-    local w = font:getWidth(str); lg.print(str, win_w-w, win_h-16)
+    local w = font:getWidth(str); lg.print(str, win_w-w, win_h-32)
+
+    local w = font:getWidth(str_test); lg.print(str_test, win_w-w, win_h-16)
 
 end
