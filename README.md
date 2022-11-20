@@ -45,7 +45,7 @@ There is also a Lua rewrite of the [simplify-js](https://github.com/mourner/simp
     isCircleOutCircle       (x1,y1,r1, x2,y2,r2, repos)
     isTrisIntersect         (tri1, tri2)
     isPointInTri            (x,y, triangle)
-    getPolysSharedEdges     (verts1, verts2, round_v)
+    getPolysSharedEdges     (verts1, verts2)
     getTriArea              (triangle)
     getTriCenter            (triangle)
     getAdjacentTris         (index, triangles)
