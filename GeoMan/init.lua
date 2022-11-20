@@ -945,6 +945,59 @@ local function isSegmentsOverlap(x1,y1,x2,y2, x3,y3,x4,y4)
 end
 
 
+local function isPolysAdjacents(p1,p2, round_v)
+
+    for i = 1, #p1-1, 2 do
+        if isPointInPoly(#p1[i], #p1[i+1], p2) then
+            return false
+        end
+    end
+
+    local adj = {}
+
+    for i = 1, #p1-1, 2 do
+
+        local _i = i+2 < #p1 and i+2 or 1
+
+        local x1, y1 = p1[i], p1[i+1]
+        local x2, y2 = p1[_i], p1[_i+1]
+
+        if round_v then
+            x1,y1=round(x1),round(y1)
+            x2,y2=round(x2),round(y2)
+        end
+
+        for j = 1, #p2-1, 2 do
+
+            local _j = j+2 < #p2 and j+2 or 1
+
+            local x3, y3 = p1[j], p1[j+1]
+            local x4, y4 = p1[_j], p1[_j+1]
+
+            if round_v then
+                x3,y3=round(x3),round(y3)
+                x4,y4=round(x4),round(y4)
+            end
+
+            if isSegmentsOverlap(
+                x1,y1,x2,y2,
+                x3,y3,x4,y4
+            ) then
+                adj[#adj+1] = {
+                    { i1=i, i2=_i, x1,y1,x2,y2 },
+                    { i1=j, i2=_j, x3,y3,x4,y4 }
+                }
+            end
+
+        end
+
+    end
+
+    return (#adj > 0) and adj or false
+
+end
+
+
 local function getPolysSharedEdges(p1,p2)
 
     local shared_verts = {}
@@ -1092,6 +1145,7 @@ return {
     isTrisIntersect         = isTrianglesIntersect,     -- tri1,tri2
     isPointInTri            = isPointInTri,             -- x,y,triangle
     getPolysSharedEdges     = getPolysSharedEdges,      -- verts1, verts2
+    isPolysAdjacents        = isPolysAdjacents,         -- verts1, verts2, round_v
     getTriArea              = getTriArea,               -- triangle
     getTriCenter            = getTriCenter,             -- triangle
     getAdjacentTris         = getAdjacentTris,          -- index, triangles
