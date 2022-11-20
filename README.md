@@ -54,5 +54,5 @@ There is also a Lua rewrite of the [simplify-js](https://github.com/mourner/simp
     isSegmentsOverlap       (x1,y1,x2,y2,x3,y3,x4,y4)
     nearestPoint            (x,y, points)
     lineCross               (x1,y1,x2,y2, x3,y3,x4,y4)
-    polybool           		(p1,p2, operator, getMostVerts)
+    polybool                (p1,p2, operator, getMostVerts)
     convexpart              (verts)
