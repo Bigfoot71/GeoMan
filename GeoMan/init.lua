@@ -925,10 +925,10 @@ local function getTriArea(tri)
 end
 
 
-local function isSegmentsOverlap(x1,y1,x2,y2, x3,y3,x4,y4) -- NEW
+local function isSegmentsOverlap(x1,y1,x2,y2, x3,y3,x4,y4)
 
-    local a1 = math.atan2(x1-x2, y1-y2)
-    local a2 = math.atan2(x3-x4, y3-y4)
+    local a1 = math.abs(math.atan2(x1-x2, y1-y2))
+    local a2 = math.abs(math.atan2(x3-x4, y3-y4))
 
     if a1 == a2 then
 
@@ -945,7 +945,7 @@ local function isSegmentsOverlap(x1,y1,x2,y2, x3,y3,x4,y4) -- NEW
 end
 
 
-local function getPolysSharedEdges(p1,p2,round_v) -- NEW
+local function getPolysSharedEdges(p1,p2,round_v)
 
     local ise = {}
 
@@ -1123,6 +1123,7 @@ return {
     isSegmentsOverlap       = isSegmentsOverlap,        -- x1,y1,x2,y2,x3,y3,x4,y4
     nearestPoint            = nearestPoint,             -- x,y,points
     lineCross               = lineCross,		        -- x1,y1,x2,y2,x3,y3,x4,y4
-    polybool                = polybool, 		        -- p1,p2,operator
+    polybool                = polybool, 		        -- p1,p2,operator,getMostVerts
     convexpart              = convexpart                -- verts
 }
+
