@@ -31,6 +31,10 @@ local ccw = function(a,b,c)
     return (b[1] - a[1]) * (c[2] - a[2]) > (b[2] - a[2]) * (c[1] - a[1])
 end
 
+local cmp = function (x1,y1,x2,y2)
+    return x1 == x2 and y1 == y2
+end
+
 local v2crossProduct = function(x1, y1, x2, y2)
     return x1 * y2 - y1 * x2
 end
@@ -74,27 +78,38 @@ local function newLozenge(x,y,w,h)
 end
 
 
-local function keepMidVerts(verts, keepOlds)
+local function keepMidPoints(points, keepOlds)
 
-    local v = {}
+    local pts = {}
 
-    for i = 1, #verts-1, 2 do
+    for i = 1, #points-1, 2 do
 
-        local j = i+2 < #verts and i+2 or 1
+        local j = i+2 < #points and i+2 or 1
 
-        local x = (verts[i] + verts[j]) / 2
-        local y = (verts[i+1] + verts[j+1]) / 2
+        local x = (points[i] + points[j]) / 2
+        local y = (points[i+1] + points[j+1]) / 2
 
         if keepOlds then
-            v[#v+1], v[#v+2] = verts[i], verts[i+1]
+            pts[#pts+1] = points[i]
+            pts[#pts+1] = points[i+1]
         end
 
-        v[#v+1], v[#v+2] = x, y
+        pts[#pts+1], pts[#pts+2] = x, y
 
     end
 
-    return v
+    return pts
 
+end
+
+
+local function getMiddle(x1,y1,x2,y2)
+    return (x1+x2)/2, (y1+y2)/2
+end
+
+
+local function getDist(x1,y1,x2,y2)
+    return math.sqrt((x1-x2)^2+(y1-y2)^2)
 end
 
 
@@ -105,7 +120,7 @@ local function getSegDist(x,y, x1,y1, x2,y2)
 
     if dx ~= 0 or dy ~= 0 then
 
-        t = ((x - x1) * dx + (y - y1) * dy) / (dx^2 + dy^2)
+        local t = ((x - x1) * dx + (y - y1) * dy) / (dx^2 + dy^2)
 
         if t > 1 then
             x1, y1 = x2, y2
@@ -123,46 +138,45 @@ local function getSegDist(x,y, x1,y1, x2,y2)
 
 end
 
+local simplifyRadialDistance = function(points, sqTolerance)
 
-local simplifyRadialDistance = function(verts, tolerance)
+    local prev_x, x = points[1]
+    local prev_y, y = points[2]
 
-    local prev_x, x = verts[1]
-    local prev_y, y = verts[2]
+    local new_points = {prev_x, prev_y}
 
-    local new_verts = {prev_x, prev_y}
+    for i = 1, #points-1, 2 do
 
-    for i = 1, #verts-1, 2 do
+        x, y = points[i], points[i+1]
 
-        x, y = verts[i], verts[i+1]
-
-        if getDist(x,y, prev_x,prev_y) > tolerance then
-            new_verts[#new_verts+1] = x
-            new_verts[#new_verts+1] = y
+        if getDist(x,y, prev_x,prev_y) > sqTolerance then
+            new_points[#new_points+1] = x
+            new_points[#new_points+1] = y
             prev_x, prev_y = x, y
         end
 
     end
 
     if prev_x ~= x and prev_y ~= y then
-        new_verts[#new_verts+1] = x
-        new_verts[#new_verts+1] = y
+        new_points[#new_points+1] = x
+        new_points[#new_points+1] = y
     end
 
-    return new_verts
+    return new_points
 
 end
 
 local simplifyDPStep
-simplifyDPStep = function(verts, first, last, tolerance, simplified)
+simplifyDPStep = function(points, first, last, sqTolerance, simplified)
 
-    local maxDist, index = tolerance
+    local maxDist, index = sqTolerance
 
     for i = first+2, last, 2 do
 
         local dist = getSegDist(
-            verts[i], verts[i+1],
-            verts[first], verts[first+1],
-            verts[last], verts[last+1]
+            points[i], points[i+1],
+            points[first], points[first+1],
+            points[last], points[last+1]
         )
 
         if (dist > maxDist) then
@@ -171,61 +185,61 @@ simplifyDPStep = function(verts, first, last, tolerance, simplified)
 
     end
 
-    if maxDist > tolerance then
+    if maxDist > sqTolerance then
 
         if index - first > 1 then
-            simplifyDPStep(verts, first, index, tolerance, simplified)
-            simplified[#simplified+1] = verts[index]
-            simplified[#simplified+1] = verts[index+1]
+            simplifyDPStep(points, first, index, sqTolerance, simplified)
+            simplified[#simplified+1] = points[index]
+            simplified[#simplified+1] = points[index+1]
         end
 
         if last - index > 1 then
-            simplifyDPStep(verts, index, last, tolerance, simplified)
+            simplifyDPStep(points, index, last, sqTolerance, simplified)
         end
 
     end
 
 end
 
-local simplifyDouglasPeucker = function(verts, tolerance)
+local simplifyDouglasPeucker = function(points, sqTolerance)
 
-    local last = #verts-1
-    local simplified = {verts[1], verts[2]}
+    local last = #points-1
+    local simplified = {points[1], points[2]}
 
-    simplifyDPStep(verts, 1, last, tolerance, simplified)
+    simplifyDPStep(points, 1, last, sqTolerance, simplified)
 
-    simplified[#simplified+1] = verts[last]
-    simplified[#simplified+1] = verts[last+1]
+    simplified[#simplified+1] = points[last]
+    simplified[#simplified+1] = points[last+1]
 
     return simplified;
 
 end
 
-local function simplifyPoly(verts, tolerance, highestQuality)
+local function simplifyPoly(points, tolerance, highestQuality)
 
     tolerance = tolerance or .1
     highestQuality = highestQuality or true
 
-    sqtolerance = tolerance ^ 2
+    local sqtolerance = tolerance ^ 2
 
     if not highestQuality then
-        verts = simplifyRadialDistance(verts, sqtolerance)
+        points = simplifyRadialDistance(points, sqtolerance)
     end
 
-    verts = simplifyDouglasPeucker(verts, sqtolerance)
+    points = simplifyDouglasPeucker(points, sqtolerance)
 
-    return verts
+    return points
 
 end
 
 
-local function newPolygonTrans(x,y,rot,size,v)
+local function newPolygonTrans(p,x,y,rot,size)
 
     rot, size = rot or 0, size or 1
 
     local tab={}
-    for i=1,#v/2 do
-        tab[2*i-1],tab[2*i]=axisRot(v[2*i-1],v[2*i],rot)
+    for i=1,#p/2 do
+        tab[2*i-1],tab[2*i]=axisRot(p[2*i-1],p[2*i],rot)
         tab[2*i-1]=tab[2*i-1]*size+x
         tab[2*i]=tab[2*i]*size+y
     end
@@ -235,21 +249,16 @@ local function newPolygonTrans(x,y,rot,size,v)
 end
 
 
-local function polygonTrans(x,y,rot,size,v)
+local function polygonTrans(p,x,y,rot,size)
 
     rot, size = rot or 0, size or 1
 
-    for i=1,#v/2 do
-        v[2*i-1], v[2*i] = axisRot(v[2*i-1], v[2*i], rot)
-        v[2*i-1] = v[2*i-1]*size+x
-        v[2*i] = v[2*i]*size+y
+    for i=1,#p/2 do
+        p[2*i-1], p[2*i] = axisRot(p[2*i-1], p[2*i], rot)
+        p[2*i-1] = p[2*i-1]*size+x
+        p[2*i] = p[2*i]*size+y
     end
 
-end
-
-
-local function getDist(x1,y1,x2,y2)
-    return math.sqrt((x1-x2)^2+(y1-y2)^2)
 end
 
 
@@ -524,9 +533,9 @@ local function linesIntersect(x1,y1, x2,y2, x3,y3, x4,y4, asSegment)
     local c2 = (x4 * y3) - (x3 * y4)
 
     local denom = (dy1 * dx2) - (dy2 * dx1)
-    
+
     if denom == 0 then return false end
-       
+
     local px = ((dx1 * c2) - (dx2 * c1)) / denom
     local py = ((dy2 * c1) - (dy1 * c2)) / denom
 
@@ -549,11 +558,12 @@ local function linesIntersect(x1,y1, x2,y2, x3,y3, x4,y4, asSegment)
 end
 
 
-local function nearestPoint(x,y,poly)
+local function nearestPoint(x,y,points)
+
     local shortest_dist, nx, ny = math.huge
 
-    for i = 1, #poly-1, 2 do
-        local px, py = poly[i], poly[i+1]
+    for i = 1, #points-1, 2 do
+        local px, py = points[i], points[i+1]
         local dist = getDist(px,py, x,y)
         if dist < shortest_dist then
             shortest_dist = dist
@@ -614,18 +624,19 @@ local function randomPolygon(x,y,count,size)
     for i=1,count*2 do
         table.insert(v,math.random(-50,50)*size)
     end
-    return newPolygonTrans(x,y,0,1,convexHull(v))
+    return newPolygonTrans(convexHull(v),x,y,0,1)
 end
 
 
 --return area, center
-local function getArea(verts)
-    local count=#verts/2
-    local cx,cy=0,0
+local function getPolyArea(verts)
+
     local area = 0
+    local cx,cy=0,0
 
     local refx,refy=0,0
     for i=1,#verts-1,2 do
+
         local p1x,p1y=refx,refy
         local p2x,p2y=verts[i],verts[i+1]
         local p3x = i+2>#verts and verts[1] or verts[i+2]
@@ -638,30 +649,17 @@ local function getArea(verts)
 
         local d=v2crossProduct(e1x,e1y,e2x,e2y)
         local triAngleArea=0.5*d
+
         area=area+triAngleArea
         cx = cx + triAngleArea*(p1x+p2x+p3x)/3
         cy = cy + triAngleArea*(p1y+p2y+p3y)/3
+
     end
 
     if area~=0 then
         cx, cy = cx/area, cy/area
         return math.abs(area),cx,cy
     end
-end
-
-
-local function setPolygonPosition(x,y,v)  -- TODO: must be optimized
-
-    local _,cx,cy = getArea(v)
-
-    local dx = cx - x
-    local dy = cy - y
-
-    for i = 1, #v-1, 2 do
-        v[i] = v[i] - dx
-        v[i+1] = v[i+1] - dy
-    end
-
 end
 
 
@@ -685,10 +683,54 @@ local function getPolyDimensions(poly)
 end
 
 
-local function isPolysIntersect_AABB(v1, v2)
+local function setPolyPosition(p,x,y,isCenter)  -- TODO: must be optimized
 
-    local _,_, xMin1,yMin1, xMax1,yMax1 = getPolyDimensions(v1)
-    local _,_, xMin2,yMin2, xMax2,yMax2 = getPolyDimensions(v2)
+    local px,py, _
+
+    if isCenter then _,px,py = getPolyArea(p)
+    else _,_,px,py = getPolyDimensions(p) end
+
+    local dx = px - x
+    local dy = py - y
+
+    for i = 1, #p-1, 2 do
+        p[i] = p[i] - dx
+        p[i+1] = p[i+1] - dy
+    end
+
+end
+
+
+local function getPolyLength(poly, isLine)
+
+    local len = 0
+
+    if isLine then
+        for i = 1, #poly-3, 2 do
+            len = len + getDist(
+                poly[i], poly[i+1],
+                poly[i+2], poly[i+3]
+            )
+        end
+    else
+        for i = 1, #poly-1, 2 do
+            local j = i+2 < #poly and i+2 or 1
+            len = len + getDist(
+                poly[i], poly[i+1],
+                poly[j], poly[j+1]
+            )
+        end
+    end
+
+    return len
+
+end
+
+
+local function isPolysIntersect_AABB(p1, p2)
+
+    local _,_, xMin1,yMin1, xMax1,yMax1 = getPolyDimensions(p1)
+    local _,_, xMin2,yMin2, xMax2,yMax2 = getPolyDimensions(p2)
 
     return not (
       xMax1 < xMin2 or yMax1 < yMin2 or
@@ -698,19 +740,19 @@ local function isPolysIntersect_AABB(v1, v2)
 end
 
 
-local function isPolysIntersect(v1, v2)
+local function isPolysIntersect(p1, p2)
 
-    for i1 = 1, #v1-1, 2 do
+    for i1 = 1, #p1-1, 2 do
 
-        local i2 = i1+2 < #v1 and i1+2 or 1
+        local i2 = i1+2 < #p1 and i1+2 or 1
 
-        for j1 = 1, #v2-1, 2 do
+        for j1 = 1, #p2-1, 2 do
 
-            local j2 = j1+2 < #v2 and j1+2 or 1
+            local j2 = j1+2 < #p2 and j1+2 or 1
 
             if linesIntersect(
-                v1[i1], v1[i1+1], v1[i2], v1[i2+1],
-                v2[j1], v2[j1+1], v2[j2], v2[j2+1]
+                p1[i1], p1[i1+1], p1[i2], p1[i2+1],
+                p2[j1], p2[j1+1], p2[j2], p2[j2+1]
             ) then
                 return true
             end
@@ -723,17 +765,17 @@ local function isPolysIntersect(v1, v2)
 end
 
 
-local function isPolyInPoly(v1, v2, entirely) -- TODO: can be optimized but good example
+local function isPolyInPoly(p1, p2, entirely) -- TODO: can be optimized but good example
 
-    local intersect = isPolysIntersect(v1, v2)
+    local intersect = isPolysIntersect(p1, p2)
 
     if not entirely and intersect then
         return true
     else
 
-        for i = 1, #v1-1, 2 do
+        for i = 1, #p1-1, 2 do
 
-            local inside = isPointInPoly(v1[i], v1[i+1], v2)
+            local inside = isPointInPoly(p1[i], p1[i+1], p2)
 
             if (not intersect and inside)
             or (not entirely and inside)
@@ -750,6 +792,126 @@ local function isPolyInPoly(v1, v2, entirely) -- TODO: can be optimized but good
 end
 
 
+local function isPolySelfIntersect(p, filterFunc) -- TODO: Can be optimized by implementing Bentley Ottman's algorithm
+
+    local seen = setmetatable({}, {__index = function(t,k)
+        local s = {}; t[k] = s; return s
+    end})
+
+    local len = #p
+
+    local isects = {}
+
+    for i = 1, len-1, 2 do
+
+        local _i = i+2 < len and i+2 or 1
+
+        local x1, y1 = p[i], p[i+1]
+        local x2, y2 = p[_i], p[_i+1]
+
+        for j = 1, len-1, 2 do
+
+            if i ~= j then
+
+                local _j = j+2 < len and j+2 or 1
+
+                local x3, y3 = p[j], p[j+1]
+                local x4, y4 = p[_j], p[_j+1]
+
+                if not (
+                   cmp(x1,y1, x3,y3)
+                or cmp(x2,y2, x3,y3)
+                or cmp(x1,y1, x4,y4)
+                or cmp(x2,y2, x4,y4)
+                ) then
+
+                    local ix,iy = linesIntersect(
+                        x1,y1,x2,y2, x3,y3,x4,y4
+                    )
+
+                    if ix then
+
+                        if not (
+                           cmp(ix,iy, x1,y1)
+                        or cmp(ix,iy, x2,y2)
+                        or cmp(ix,iy, x3,y3)
+                        or cmp(ix,iy, x4,y4)
+                        ) then
+
+                            local unique = not seen[ix][iy]
+
+                            if unique then
+                                seen[ix][iy] = true
+                            end
+
+                            local collect = unique
+
+                            if filterFunc then
+                                collect = filterFunc(ix,iy, i, x1,y1, x2,y2, j, x3,y3, x4,y4, unique)
+                            end
+
+                            if collect then
+                                isects[#isects+1] = ix
+                                isects[#isects+1] = iy
+                            end
+
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    return (#isects > 0) and isects or nil
+
+end
+
+
+local cross2 = function(tri1, tri2)
+
+    local dxA = tri1[1] - tri2[5]
+    local dyA = tri1[2] - tri2[6]
+    local dxB = tri1[3] - tri2[5]
+    local dyB = tri1[4] - tri2[6]
+    local dxC = tri1[5] - tri2[5]
+    local dyC = tri1[6] - tri2[6]
+
+    local dxBA = tri2[5] - tri2[3]
+    local dxAC = tri2[1] - tri2[5]
+    local dyAB = tri2[4] - tri2[6]
+    local dyCA = tri2[6] - tri2[2]
+
+    local d = dyAB * (tri2[1] - tri2[5]) + dxBA * (tri2[2] - tri2[6])
+
+    local sa = dyAB * dxA + dxBA * dyA
+    local sb = dyAB * dxB + dxBA * dyB
+    local sc = dyAB * dxC + dxBA * dyC
+
+    local ta = dyCA * dxA + dxAC * dyA
+    local tb = dyCA * dxB + dxAC * dyB
+    local tc = dyCA * dxC + dxAC * dyC
+
+    if d < 0 then
+        return (
+            (sa >= 0 and sb >= 0 and sc >= 0)
+         or (ta >= 0 and tb >= 0 and tc >= 0)
+         or (sa+ta <= d and sb+tb <= d and sc+tc <= d)
+        )
+    end
+
+    return (
+        (sa <= 0 and sb <= 0 and sc <= 0)
+     or (ta <= 0 and tb <= 0 and tc <= 0)
+     or (sa+ta >= d and sb+tb >= d and sc+tc >= d)
+    )
+
+end
+
+local function isTrianglesIntersect(tri1, tri2)
+  return not (cross2(tri1,tri2) or cross2(tri2,tri1))
+end
+
+
 local function getTriArea(tri)
 
     local p = getDist(tri[1],tri[2], tri[3],tri[4])
@@ -759,6 +921,65 @@ local function getTriArea(tri)
     local s = (p+q+r)*.5
 
     return (s*(s-p)(s-q)(s-r))^.5
+
+end
+
+
+local function isSegmentsOverlap(x1,y1,x2,y2, x3,y3,x4,y4) -- NEW
+
+    local a1 = math.atan2(x1-x2, y1-y2)
+    local a2 = math.atan2(x3-x4, y3-y4)
+
+    if a1 == a2 then
+
+        return (
+            isBetween(x1,y1, x3,y3,x4,y4)
+         or isBetween(x2,y2, x3,y3,x4,y4)
+         or isBetween(x3,y3, x1,y1,x2,y2)
+         or isBetween(x4,y4, x1,y1,x2,y2) )
+
+    end
+
+    return false
+
+end
+
+
+local function getPolysSharedEdges(p1,p2,round_v) -- NEW
+
+    local ise = {}
+
+    for i = 1, #p1-1, 2 do
+        local _i = i+2 < #p1 and i+2 or 1
+
+        local x1,y1 = p1[i], p1[i+1]
+        local x2,y2 = p1[_i], p1[_i+1]
+
+        if round_v then
+            x1,y1 = round(x1),round(y1)
+            x2,y2 = round(x2),round(y2)
+        end
+
+        for j = 1, #p2-1, 2 do
+            local _j = j+2 < #p2 and j+2 or 1
+
+            local x3,y3 = p1[j], p1[j+1]
+            local x4,y4 = p1[_j], p1[_j+1]
+
+            if round_v then
+                x3,y3 = round(x3),round(y3)
+                x3,y3 = round(x3),round(y3)
+            end
+
+            if isSegmentsOverlap(x1,y1,x2,y2, x3,y3,x4,y4) then
+                ise[#ise+1] = {i,_i ,j,_j}
+            end
+
+        end
+
+    end
+
+    return #ise > 0 and ise or nil
 
 end
 
@@ -868,34 +1089,40 @@ return {
     hexagon                 = newHexagon, 		        -- x,y,r
     lozenge                 = newLozenge,               -- x,y,w,h
     random                  = randomPolygon, 	        -- count,size
-    keepMidVerts            = keepMidVerts,             -- verts
+    keepMidPoints           = keepMidPoints,            -- points, keepOlds
     getSegDist              = getSegDist,               -- x,y,x1,y1,x2,y2
-    simplifyPoly            = simplifyPoly,             -- verts, tolerance, highQuality
-    getArea                 = getArea, 			        -- verts
+    simplifyPoly            = simplifyPoly,             -- points, tolerance, highestQuality
+    getPolyArea             = getPolyArea, 			    -- verts
     getPolyDimensions       = getPolyDimensions,        -- verts
-    getTriArea              = getTriArea,               -- verts
+    getPolyLength           = getPolyLength,            -- verts,isLine
     convexHull              = convexHull,		        -- verts
     concaveHull             = concaveHull, 		        -- verts
     translate               = polygonTrans, 	        -- x,y,rot,size,verts
     newTranslated           = newPolygonTrans,          -- x,y,rot,size,verts
+    getMiddle               = getMiddle,                -- x1,y1,x2,y2
     getDist                 = getDist,                  -- x1,y1,x2,y2
     getAngle                = getRot,                   -- x1,y1,x2,y2,toggle
-    setPosition             = setPolygonPosition,       -- x,y,verts
+    setPolyPosition         = setPolyPosition,          -- points,x,y,isCenter
+    isPolySelfIntersect     = isPolySelfIntersect,      -- verts
     isPolysIntersect_AABB   = isPolysIntersect_AABB,    -- verts1, verts2
     isPolysIntersect        = isPolysIntersect,         -- verts1, verts2
-    isPolyInPoly            = isPolyInPoly,             -- verts1, verts2
+    isPolyInPoly            = isPolyInPoly,             -- verts1, verts2, entirely
     isPointInPoly           = isPointInPoly,	        -- x,y,verts
     isCircleInPoly          = isCircleInPoly,           -- x,y,r,verts,isOut
     isCircleOutPoly         = isCircleOutPoly,          -- x,y,r,verts
     isCircleInCircle        = isCircleInCircle,         -- x1,y1,r1,x2,y2,r2,repos
     isCircleOutCircle       = isCircleOutCircle,        -- x1,y1,r1,x2,y2,r2,repos
-    isPointInTri            = isPointInTri,             -- x,y,verts
-    getTriCenter            = getTriCenter,             -- verts
+    isTrisIntersect         = isTrianglesIntersect,     -- tri1,tri2
+    isPointInTri            = isPointInTri,             -- x,y,triangle
+    getPolysSharedEdges     = getPolysSharedEdges,      -- verts1, verts2, round_v
+    getTriArea              = getTriArea,               -- triangle
+    getTriCenter            = getTriCenter,             -- triangle
     getAdjacentTris         = getAdjacentTris,          -- index, triangles
     isBetween               = isBetween,                -- x,y,x1,y1,x2,y2
     linesIntersect          = linesIntersect,           -- x1,y1,x2,y2,x3,y3,x4,y4
-    nearestPoint            = nearestPoint,             -- x,y,verts
+    isSegmentsOverlap       = isSegmentsOverlap,        -- x1,y1,x2,y2,x3,y3,x4,y4
+    nearestPoint            = nearestPoint,             -- x,y,points
     lineCross               = lineCross,		        -- x1,y1,x2,y2,x3,y3,x4,y4
-    polybool                = polybool, 		        -- p1,p2,operation
+    polybool                = polybool, 		        -- p1,p2,operator
     convexpart              = convexpart                -- verts
 }
