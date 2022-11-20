@@ -46,7 +46,7 @@ There is also a Lua rewrite of the [simplify-js](https://github.com/mourner/simp
     isTrisIntersect         (tri1, tri2)
     isPointInTri            (x,y, triangle)
     getPolysSharedEdges     (verts1, verts2)
-    isPolysAdjacents        (verts1, verts2, round_v)
+    isPolysAdjacents,       (verts1, verts2, getAdj, round_v)
     getTriArea              (triangle)
     getTriCenter            (triangle)
     getAdjacentTris         (index, triangles)
