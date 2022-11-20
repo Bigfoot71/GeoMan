@@ -29,77 +29,71 @@ function table.copy(tab)
     return {unpack(tab)}
 end
 
-function math.distance(x1,y1,x2,y2)
+local function getDist(x1,y1,x2,y2)
     return math.sqrt((x1-x2)^2+(y1-y2)^2)
 end
 
 local lineCross = function (x1,y1,x2,y2,x3,y3,x4,y4)
-    local denom, offset;         
-    local x, y             
 
-    a1 = y2 - y1;
-    b1 = x1 - x2;
-    c1 = x2 * y1 - x1 * y2;
+    local a1 = y2 - y1;
+    local b1 = x1 - x2;
+    local c1 = x2 * y1 - x1 * y2;
 
-
-    r3 = a1 * x3 + b1 * y3 + c1;
-    r4 = a1 * x4 + b1 * y4 + c1;
+    local r3 = a1 * x3 + b1 * y3 + c1;
+    local r4 = a1 * x4 + b1 * y4 + c1;
 
     if ( r3 ~= 0 and r4 ~= 0 and ((r3 >= 0 and r4 >= 0) or (r3 < 0 and r4 < 0))) then
-        return 
+        return
     end
 
-    a2 = y4 - y3;
-    b2 = x3 - x4;
-    c2 = x4 * y3 - x3 * y4;
+    local a2 = y4 - y3;
+    local b2 = x3 - x4;
+    local c2 = x4 * y3 - x3 * y4;
 
-    r1 = a2 * x1 + b2 * y1 + c2;
-    r2 = a2 * x2 + b2 * y2 + c2;
+    local r1 = a2 * x1 + b2 * y1 + c2;
+    local r2 = a2 * x2 + b2 * y2 + c2;
 
     if (r1 ~= 0 and r2 ~= 0 and ((r1 >= 0 and r2 >= 0) or (r1 < 0 and r2 < 0))) then
         return
     end
 
-    denom = a1 * b2 - a2 * b1;
+    local denom = a1 * b2 - a2 * b1;
 
     if ( denom == 0 ) then
         return true;
     end
 
-    offset = denom < 0 and - denom / 2 or denom / 2;
+    --local offset = denom < 0 and - denom / 2 or denom / 2;
 
-    x = b1 * c2 - b2 * c1;
-    y = a2 * c1 - a1 * c2;
+    local x = b1 * c2 - b2 * c1;
+    local y = a2 * c1 - a1 * c2;
+
       return x / denom, y / denom
 end
-local pointContain = function(x,y,polygon)
-    local pX={}
-    local pY={}
-    
-    for i = 1 , #polygon-1 ,2 do
-        table.insert(pX, polygon[i])
-        table.insert(pY, polygon[i+1])
-    end
 
+local pointContain = function(x,y,p)
 
-    local oddNodes=false
-    local pCount=#pX
-    local j=pCount
-    for i=1,pCount do
-        if ((pY[i]<y and pY[j]>=y) or (pY[j]<y and pY[i]>=y))
-            and (pX[i]<=x or pX[j]<=x) then
-            if pX[i]+(y-pY[i])/(pY[j]-pY[i])*(pX[j]-pX[i])<x then
-                oddNodes=not oddNodes
-            end
+    local inside, iN = false, 1
+    for iC = 1, #p-1, 2 do
+
+        iN = iN < #p-1 and iN+2 or 1
+        local xc, yc = p[iC], p[iC+1]
+        local xn, yn = p[iN], p[iN+1]
+
+        if ((yn > y) ~= (yc > y)) and (x < (y - yn) * (xc - xn)/(yc - yn) + xn) then
+            inside = not inside
         end
-        j=i
+
     end
-    return oddNodes
+
+    return inside
+
 end
-local polygonArea = function(polygon) 
+
+local polygonArea = function(polygon)
+
     local ax,ay = 0,0;
     local bx,by = 0,0;
-
 
     local area = 0;
     local fx , fy = polygon[1],polygon[2]
@@ -114,8 +108,8 @@ local polygonArea = function(polygon)
         area = area +(ax*by) - (ay*bx)
     end
 
-    
     return area/2
+
 end
 
 local Node = {}
@@ -147,7 +141,7 @@ end
 
 function Node:last()
     local a = self
-    
+
     while a.next and a.next~=self do
         a = a.next
     end
@@ -162,27 +156,27 @@ end
 
 function Node:firstNodeOfIntersect()
     local a = self
-    
+
     while true do
         a = a.next
         if not a then break end --should check error
         if a == self then break end
         if a.intersect and not a.visited then break end
     end
-    
+
     return a
 end
 
 function Node:insertBetween(first,last)
     local a = first
-    
+
     while a~=last and a.alpha<self.alpha do
         a = a.next
     end
 
     self.next = a
     self.prev = a.prev
-    
+
     if self.prev  then
         self.prev.next = self
     end
@@ -223,11 +217,10 @@ end
 
 
 local function indentifyIntersections(subjectList, clipList)
-        
 
     local found = false 
     local subject = subjectList
-    
+
     while subject.next do
         if not subject.intersect then
             local clip = clipList
@@ -239,14 +232,14 @@ local function indentifyIntersections(subjectList, clipList)
                     local bx,by = subjectNext.x , subjectNext.y
                     local cx,cy = clip.x , clip.y
                     local dx,dy = clipNext.x, clipNext.y
-                    
+
                     local x,y = lineCross(ax,ay,bx,by,cx,cy,dx,dy)
-                    
+
                     if x and x~=true then
                         found = true
-                        local alphaS = math.distance(ax,ay,x,y)/math.distance(ax,ay,bx,by)
-                        local alphaC = math.distance(cx,cy,x,y)/math.distance(cx,cy,dx,dy)
-                        
+                        local alphaS = getDist(ax,ay,x,y)/getDist(ax,ay,bx,by)
+                        local alphaC = getDist(cx,cy,x,y)/getDist(cx,cy,dx,dy)
+
                         local subjectInter = Node:new(x,y,alphaS,true)
                         local clipInter = Node:new(x,y,alphaC,true)
                         subjectInter.neighbor = clipInter
@@ -266,10 +259,10 @@ local function indentifyIntersections(subjectList, clipList)
 end
 
 local function indentifyIntersectionType(subjectList, clipList, clipPoly, subjectPoly, type)
-    
+
     local se = pointContain(subjectList.x,subjectList.y,clipPoly)
     if type == "and" then se = not se end
-    
+
     local subject = subjectList
     while subject do
         if subject.intersect then
@@ -331,10 +324,10 @@ local function collectClipResults(subjectList, clipList)
 end
 
 
-local function polygonBoolean(subjectPoly, clipPoly, operation)
+local function polygonBoolean(subjectPoly, clipPoly, operation, getMostVerts)
 
-    local subjectList ,last = createList(subjectPoly)
-    local clipList ,last2= createList(clipPoly)
+    local subjectList, last = createList(subjectPoly)
+    local clipList, last2 = createList(clipPoly)
 
     local subject, clip, res
     local isects = indentifyIntersections(subjectList, clipList);
@@ -347,9 +340,9 @@ local function polygonBoolean(subjectPoly, clipPoly, operation)
           clipPoly,
           subjectPoly,
           operation)
-        
-        res = collectClipResults(subjectList, clipList)	
-    else 
+
+        res = collectClipResults(subjectList, clipList)
+    else
         local inner = pointContain(subjectPoly[1],subjectPoly[2],clipPoly)
         local outer = pointContain(clipPoly[1],clipPoly[2],subjectPoly)
         res = {}
@@ -388,25 +381,29 @@ local function polygonBoolean(subjectPoly, clipPoly, operation)
 
             table.push(res,sclone)
 
-            if math.abs(sarea)> math.abs(carea) then
+            if math.abs(sarea) > math.abs(carea) then
                 table.push(res,cclone)
             else
                 table.unshift(res,cclone)
             end
         end
-        
+
     end
 
     -- if several polygons, we select the one containing the most vertices
 
-    if type(res[1]) == "table" then
+    if getMostVerts and type(res[1]) == "table" then
+
         local longest, length = 1, #res[1]
+
         if #res > 1 then for i=2, #res do
             if type(res[i]) == "table" and #res[i] > length then
                 longest, length = i, #res[i]
             end end
         end
+
         res = res[longest]
+
     end
 
     return res
