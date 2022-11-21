@@ -1,38 +1,36 @@
-function math.sign(x)
-    if x>0 then return 1
-    elseif x<0 then return -1
-    else return 0 end
+local path = string.gsub(..., "polybool", "", 1)
+local lineCross = require(path.."lineCross")
+
+local sign = function(x)
+    return x>0 and 1 or x<0 and -1 or x
 end
 
-function table.push(tab,tab2)
-    for i,v in ipairs(tab2) do
+local push = function(tab,tab2)
+    for _,v in ipairs(tab2) do
         table.insert(tab,v)
     end
 end
 
-function table.unshift(tab,tab2)
+local unshift = function(tab,tab2)
     for i,v in ipairs(tab2) do
         table.insert(tab,i,v)
     end
 end
 
-function table.reverse(tab)
+local reverse = function(tab)
     local len = #tab
     local rt = {}
     for i,v in ipairs(tab) do
         rt[len-i+1] = v
     end
-    tab = rt
+    return rt
 end
 
-function table.copy(tab)
+local copy = function(tab)
     return {unpack(tab)}
 end
 
-local path = string.gsub(..., "polybool", "", 1)
-local lineCross = require(path.."lineCross")
-
-local function getDist(x1,y1,x2,y2)
+local distance = function(x1,y1,x2,y2)
     return math.sqrt((x1-x2)^2+(y1-y2)^2)
 end
 
@@ -57,20 +55,20 @@ end
 
 local polygonArea = function(polygon)
 
-    local ax,ay = 0,0;
-    local bx,by = 0,0;
+    local ax,ay = 0,0
+    local bx,by = 0,0
 
-    local area = 0;
-    local fx , fy = polygon[1],polygon[2]
+    local area = 0
+    local fx,fy = polygon[1],polygon[2]
 
-    for i = 3, #polygon-1 , 2 do
+    for i = 3, #polygon-1, 2 do
         local px,py = polygon[i-2],polygon[i-1]
         local cx,cy = polygon[i],polygon[i+1]
         ax = fx - cx
         ay = fy - cy
         bx = fx - px
         by = fy - py
-        area = area +(ax*by) - (ay*bx)
+        area = area + (ax*by) - (ay*bx)
     end
 
     return area/2
@@ -183,7 +181,7 @@ end
 
 local function indentifyIntersections(subjectList, clipList)
 
-    local found = false 
+    local found = false
     local subject = subjectList
 
     while subject.next do
@@ -202,8 +200,8 @@ local function indentifyIntersections(subjectList, clipList)
 
                     if x and x~=true then
                         found = true
-                        local alphaS = getDist(ax,ay,x,y)/getDist(ax,ay,bx,by)
-                        local alphaC = getDist(cx,cy,x,y)/getDist(cx,cy,dx,dy)
+                        local alphaS = distance(ax,ay,x,y)/distance(ax,ay,bx,by)
+                        local alphaC = distance(cx,cy,x,y)/distance(cx,cy,dx,dy)
 
                         local subjectInter = Node:new(x,y,alphaS,true)
                         local clipInter = Node:new(x,y,alphaC,true)
@@ -226,6 +224,7 @@ end
 local function indentifyIntersectionType(subjectList, clipList, clipPoly, subjectPoly, type)
 
     local se = pointContain(subjectList.x,subjectList.y,clipPoly)
+
     if type == "and" then se = not se end
 
     local subject = subjectList
@@ -248,130 +247,134 @@ local function indentifyIntersectionType(subjectList, clipList, clipPoly, subjec
         end
         clip = clip.next
     end
+
 end
 
 
 local function collectClipResults(subjectList, clipList)
+
     subjectList:createLoop()
     clipList:createLoop()
 
----@diagnostic disable-next-line: undefined-global
-    local walker , results = _ , {}
-
+    local results, walker = {}
 
     while true do
+
         walker = subjectList:firstNodeOfIntersect()
         if walker == subjectList then break end
+
         local result = {}
+
         while true do
+
             if walker.visited  then break end
+
             walker.visited = true
             walker = walker.neighbor
             table.insert(result,walker.x)
             table.insert(result,walker.y)
             local forward = walker.entry
+
             while true do
+
                 walker.visited = true
                 walker = forward and walker.next or walker.prev
+
                 if walker.intersect then
                     break
                 else
                     table.insert(result,walker.x)
                     table.insert(result,walker.y)
                 end
+
             end
+
         end
 
-        table.insert(results,result)
+        table.insert(results,cleanList(result))
+
     end
 
     return results
+
 end
 
 
-local function polygonBoolean(subjectPoly, clipPoly, operation, getMostVerts)
+local function polygonBoolean(subjectPoly, clipPoly, operation)
 
-    local subjectList, last = createList(subjectPoly)
-    local clipList, last2 = createList(clipPoly)
+    local res
 
-    local subject, clip, res
-    local isects = indentifyIntersections(subjectList, clipList);
+    local subjectList = createList(subjectPoly)
+    local clipList = createList(clipPoly)
 
+    if indentifyIntersections(subjectList, clipList) then
 
-    if isects then
         indentifyIntersectionType(
-          subjectList,
-          clipList,
-          clipPoly,
-          subjectPoly,
-          operation)
+            subjectList, clipList,
+            clipPoly, subjectPoly,
+            operation
+        )
 
         res = collectClipResults(subjectList, clipList)
+
     else
+
         local inner = pointContain(subjectPoly[1],subjectPoly[2],clipPoly)
         local outer = pointContain(clipPoly[1],clipPoly[2],subjectPoly)
+
         res = {}
 
         if operation == "or" then
+
             if not inner and not outer then
-                table.push(res,table.copy(subjectPoly))
-                table.push(res,table.copy(clipPoly))
+                push(res,copy(subjectPoly))
+                push(res,copy(clipPoly))
             elseif inner then
-                table.push(res,table.copy(clipPoly))
+                push(res,copy(clipPoly))
             elseif outer then
-                table.push(res,table.copy(subjectPoly))
+                push(res,copy(subjectPoly))
             end
+
         elseif operation == "and" then
+
             if inner then
-                table.push(res,table.copy(subjectPoly))
+                push(res,copy(subjectPoly))
             elseif outer then
-                table.push(res,table.copy(clipPoly))
+                push(res,copy(clipPoly))
             else
                 --error("oops")
             end
-        elseif operation == "not" then	
-            local sclone = table.copy(subjectPoly)
-            local cclone = table.copy(clipPoly)
+
+        elseif operation == "not" then
+
+            local sclone = copy(subjectPoly)
+            local cclone = copy(clipPoly)
 
             local sarea = polygonArea(sclone)
             local carea = polygonArea(cclone)
 
-            if math.sign(sarea) == math.sign(carea) then
+            if sign(sarea) == sign(carea) then
                 if outer then
-                    table.reverse(cclone)
+                    cclone = reverse(cclone)
                 elseif inner then
-                    table.reverse(sclone)
+                    sclone = reverse(sclone)
                 end
             end
 
-            table.push(res,sclone)
+            push(res,sclone)
 
             if math.abs(sarea) > math.abs(carea) then
-                table.push(res,cclone)
+                push(res,cclone)
             else
-                table.unshift(res,cclone)
+                unshift(res,cclone)
             end
+
         end
-
-    end
-
-    -- if several polygons, we select the one containing the most vertices
-
-    if getMostVerts and type(res[1]) == "table" then
-
-        local longest, length = 1, #res[1]
-
-        if #res > 1 then for i=2, #res do
-            if type(res[i]) == "table" and #res[i] > length then
-                longest, length = i, #res[i]
-            end end
-        end
-
-        res = res[longest]
 
     end
 
     return res
+
 end
 
 return polygonBoolean
