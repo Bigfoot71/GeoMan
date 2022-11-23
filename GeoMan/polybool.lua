@@ -36,16 +36,21 @@ end
 
 local pointContain = function(x,y,p)
 
-    local inside, iN = false, 1
-    for iC = 1, #p-1, 2 do
+    local len = #p
+    local inside = false
 
-        iN = iN < #p-1 and iN+2 or 1
-        local xc, yc = p[iC], p[iC+1]
-        local xn, yn = p[iN], p[iN+1]
+    for i = 1, len-1, 2 do
 
-        if ((yn > y) ~= (yc > y)) and (x < (y - yn) * (xc - xn)/(yc - yn) + xn) then
-            inside = not inside
-        end
+        local j = i+2 < len and i+2 or 1
+
+        local x1, y1 = p[i], p[i+1]
+        local x2, y2 = p[j], p[j+1]
+
+        if (((y1>y and y2<y) or (y1<y and y2>y))
+        and (x-x1 < (y-y1)*(x2-x1)/(y2-y1)))
+        or (y1==y and x1>x and y2<y)
+        or (y2==y and x2>x and y1<y)
+        then inside = not inside end
 
     end
 
