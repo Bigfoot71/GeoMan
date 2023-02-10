@@ -1,3 +1,6 @@
+## Project not maintained
+
+This project will no longer be updated, if you need a Lua library for polygons you can use [PolyMan](https://github.com/Bigfoot71/PolyMan) which will be more suitable.
 
 # GeoMan
 
